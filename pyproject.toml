@@ -1,0 +1,21 @@
+[project]
+name = "signalkit"
+version = "1.0.0"
+description = "Qloo-powered digital signage deployment assistant for field technicians"
+requires-python = ">=3.12"
+dependencies = ["fastapi>=0.116", "httpx>=0.28", "pydantic>=2.11", "python-dotenv>=1.1", "uvicorn[standard]>=0.35"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["signalkit*"]
+
+[dependency-groups]
+dev = ["pytest>=8.4", "pytest-asyncio>=1.1"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
