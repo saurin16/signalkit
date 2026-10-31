@@ -56,6 +56,28 @@ class Approval(BaseModel):
     approved: bool
 
 
+class Override(BaseModel):
+    package_id: str
+
+
+@app.post("/api/runs/{run_id}/assignments/{site_id}")
+async def override(run_id: str, site_id: str, choice: Override):
+    run = _runs.get(run_id)
+    if not run:
+        raise HTTPException(404, "Run expired. Analyze again.")
+    assignment = next((a for a in run["assignments"] if a["site"]["id"] == site_id), None)
+    if not assignment:
+        raise HTTPException(404, "Site not found in this run.")
+    selected = next((o for o in assignment["options"] if o["package_id"] == choice.package_id), None)
+    if not selected or not selected["eligible"]:
+        raise HTTPException(422, "Choose a package with Qloo coverage and a compatible screen format.")
+    assignment["winner"] = selected["package_id"]
+    assignment["confidence"] = "manual"
+    assignment["reason"] = "Technician selected this eligible package after reviewing the Qloo scores."
+    run["approved"] = False
+    return {"assignment": assignment, "approved": False}
+
+
 @app.post("/api/runs/{run_id}/approve")
 async def approve(run_id: str, decision: Approval):
     run = _runs.get(run_id)

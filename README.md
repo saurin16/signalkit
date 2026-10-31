@@ -6,7 +6,7 @@
 
 ## Try it
 
-Open the live demo and click **Analyze site fit**. The example has three approved packages, each anchored to a real artist, and screens in Chicago, Tulsa and Miami. You should see three different assignments. Chicago is flagged for human review because its two leading packages are close. Click **Approve deployment**, then download the technician CSV.
+Open the live demo and click **Analyze site fit**. The example has three approved packages, each anchored to a real artist, and screens in Chicago, Tulsa and Miami. You should see three different assignments. Chicago is flagged for human review because its two leading packages are close. A technician can choose any eligible package per site; doing so revokes previous approval. Click **Approve deployment**, then download the technician CSV.
 
 Edit any package name, artist, ID or screen format, or add sites from 105 supported US metros. Artists must match a Qloo entity exactly. A package with the wrong orientation cannot be assigned to a screen. Missing Qloo coverage never becomes a made-up recommendation.
 

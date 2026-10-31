@@ -37,3 +37,25 @@ async def test_export_needs_technician_approval(monkeypatch):
         assert csv_response.status_code == 200
         assert "Chicago, IL" in csv_response.text
         assert "Approved A" in csv_response.text
+
+
+@pytest.mark.asyncio
+async def test_override_rejects_incompatible_package_and_revokes_approval(monkeypatch):
+    import signalkit.main as main
+    fake = {"packages": [{"id": "A", "title": "Approved A"}, {"id": "B", "title": "Approved B"}],
+            "assignments": [{"site": {"id": "S", "name": "Site", "city": "Chicago, IL", "orientation": "landscape"},
+                             "winner": "A", "confidence": "clear", "reason": "Original selection",
+                             "options": [{"package_id": "A", "percentile": 90, "eligible": True},
+                                         {"package_id": "B", "percentile": 80, "eligible": False}]}],
+            "approved": True}
+    monkeypatch.setitem(main._runs, "override-test", fake)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        bad = await client.post("/api/runs/override-test/assignments/S", json={"package_id": "B"})
+        assert bad.status_code == 422
+        assert fake["approved"] is True
+        fake["assignments"][0]["options"][1]["eligible"] = True
+        good = await client.post("/api/runs/override-test/assignments/S", json={"package_id": "B"})
+        assert good.status_code == 200
+        assert fake["assignments"][0]["winner"] == "B"
+        assert fake["approved"] is False
+        assert (await client.get("/api/runs/override-test/export.csv")).status_code == 409

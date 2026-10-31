@@ -61,15 +61,30 @@ $('#analyzeBtn').addEventListener('click', async () => {
 });
 
 function renderResults(run) {
-  const clear = run.assignments.filter(a => a.confidence === 'clear').length;
+  const clear = run.assignments.filter(a => a.confidence !== 'review').length;
   const review = run.assignments.length - clear;
   $('#resultTime').textContent = `${(run.elapsed_ms / 1000).toFixed(1)}s`;
   $('#summaryStrip').innerHTML = `<div class="summary-item"><strong>${run.sites.length}</strong><span>sites analyzed<br>with live Qloo data</span></div><div class="summary-item"><strong>${clear}</strong><span>clear assignments<br>ready for technician check</span></div><div class="summary-item"><strong>${review}</strong><span>sites flagged<br>for extra review</span></div>`;
   $('#matrix').innerHTML = `<table class="matrix"><thead><tr><th>INSTALLATION SITE</th>${run.packages.map(p=>`<th>${esc(p.title)}<br><small>${esc(p.artist)}</small></th>`).join('')}</tr></thead><tbody>${run.assignments.map(a=>`<tr><td class="city">${esc(a.site.city)}<br><small style="color:#8ea1af;font-weight:400">${esc(a.site.name)}</small></td>${a.options.map(o=>{const val=o.percentile;return `<td><div class="bar-cell"><div class="bar ${a.winner===o.package_id?'winner':''}"><span style="width:${val===null?0:Math.max(2,Math.min(100,val))}%"></span></div><b>${val===null?'—':Math.round(val)}</b></div>${!o.compatible?'<small style="color:#f6a96e">Format mismatch</small>':''}</td>`;}).join('')}</tr>`).join('')}</tbody></table>`;
-  $('#assignments').innerHTML = run.assignments.map(a=>{const pkg=run.packages.find(p=>p.id===a.winner);const win=a.options.find(o=>o.package_id===a.winner);return `<article class="assignment"><div class="assignment-top"><div class="assignment-tag"><span>${esc(a.site.id)} · ${esc(a.site.orientation.toUpperCase())}</span><span class="status ${a.confidence==='review'?'review':''}">${a.confidence==='review'?'REVIEW':'CLEAR FIT'}</span></div><h4>${esc(a.site.name)}</h4><div class="sub">${esc(a.site.city)}</div></div><div class="assignment-bottom"><div class="pkg-icon">✳</div><div><strong>${pkg?esc(pkg.title):'No assignment'}</strong><small>${pkg?`${esc(pkg.id)} · ${win?Math.round(win.percentile):'—'}th percentile`:'Check package compatibility'}</small></div></div><div class="assignment-note">${esc(a.reason)}</div></article>`;}).join('');
+  $('#assignments').innerHTML = run.assignments.map(a=>{const pkg=run.packages.find(p=>p.id===a.winner);const win=a.options.find(o=>o.package_id===a.winner);const choices=a.options.filter(o=>o.eligible);return `<article class="assignment"><div class="assignment-top"><div class="assignment-tag"><span>${esc(a.site.id)} · ${esc(a.site.orientation.toUpperCase())}</span><span class="status ${a.confidence==='review'?'review':''}">${a.confidence==='review'?'REVIEW':a.confidence==='manual'?'TECH CHOICE':'CLEAR FIT'}</span></div><h4>${esc(a.site.name)}</h4><div class="sub">${esc(a.site.city)}</div></div><div class="assignment-bottom"><div class="pkg-icon">✳</div><div><strong>${pkg?esc(pkg.title):'No assignment'}</strong><small>${pkg?`${esc(pkg.id)} · ${win?Math.round(win.percentile):'—'}th percentile`:'Check package compatibility'}</small></div></div><div class="assignment-note">${esc(a.reason)}</div><label class="override-label">Technician choice<select data-override="${esc(a.site.id)}" ${choices.length?'':'disabled'} aria-label="Package for ${esc(a.site.name)}">${choices.map(o=>`<option value="${esc(o.package_id)}" ${o.package_id===a.winner?'selected':''}>${esc(o.title)} · ${Math.round(o.percentile)}th</option>`).join('')}</select></label></article>`;}).join('');
   $('#traceContent').innerHTML = run.trace.map(t=>`<div class="trace-row"><div><strong>${esc(t.agent)}</strong> — ${esc(t.result)}</div><span>${t.calls} QLOO CALL${t.calls===1?'':'S'}</span></div>`).join('')+run.qloo_calls.map(c=>`<div class="trace-row"><div>${esc(c.endpoint)} — ${esc(c.purpose)}</div><span>${c.cached?'CACHED':c.status+' · '+c.ms+'ms'}</span></div>`).join('');
   $('#approveBtn').hidden = false; $('#approveBtn').disabled = false; $('#approveBtn').innerHTML = 'Approve deployment <span>→</span>'; $('#exportBtn').hidden = true;
 }
+
+$('#assignments').addEventListener('change', async e => {
+  const select = e.target.closest('select[data-override]');
+  if (!select || !lastRun) return;
+  select.disabled = true;
+  try {
+    const response = await fetch(`/api/runs/${encodeURIComponent(lastRun.id)}/assignments/${encodeURIComponent(select.dataset.override)}`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({package_id:select.value})});
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || 'Could not save technician choice.');
+    const index = lastRun.assignments.findIndex(a => a.site.id === select.dataset.override);
+    lastRun.assignments[index] = result.assignment;
+    lastRun.approved = false;
+    renderResults(lastRun);
+  } catch (err) {showError(err.message); select.disabled = false;}
+});
 
 $('#approveBtn').addEventListener('click', async () => {
   if (!lastRun) return;
